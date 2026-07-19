@@ -100,13 +100,44 @@
   .status.photo .dot { background: #8ab8e0; animation: none; }
   @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
 
+  /* Camera tool buttons (flip, auto-snap) */
+  .stage-tools { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; }
+  .tool {
+    width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    border-radius: 12px; background: rgba(5, 6, 10, 0.55); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; touch-action: manipulation;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: background 250ms var(--ease), color 250ms var(--ease);
+  }
+  .tool.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .tool svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  video.mirror { transform: scaleX(-1); }
+  .reticle.ready { border-color: var(--accent); }
+  #flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  #flash.on { animation: flashfx 450ms var(--ease); }
+  @keyframes flashfx { from { opacity: 0.85; } to { opacity: 0; } }
+
   /* Live detected chip overlaid on stage */
   .live-chip {
     position: absolute; left: 12px; right: 12px; bottom: 12px;
-    display: flex; align-items: center; gap: 12px;
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
     padding: 10px 14px; border-radius: 14px;
     background: rgba(5, 6, 10, 0.55); border: 1px solid var(--border);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .live-top { display: flex; align-items: center; gap: 12px; }
+  /* Compact on-camera suggestions (phones: no scrolling needed) */
+  .live-sugs { display: grid; gap: 6px; }
+  .lg-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lg-label {
+    font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); width: 46px; flex: none;
+  }
+  .lg-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; text-transform: capitalize; }
+  .lg-dot { width: 14px; height: 14px; border-radius: 5px; border: 1.5px solid rgba(255, 255, 255, 0.25); }
+  @media (min-width: 900px) { .live-sugs { display: none; } }
+  @media (max-width: 899px) {
+    .stage { aspect-ratio: auto; height: 52dvh; }
   }
   .live-chip .swatch-lg {
     width: 42px; height: 42px; border-radius: 12px; flex: none;
@@ -291,13 +322,25 @@
         <video id="video" autoplay playsinline muted></video>
         <img id="photo" alt="Uploaded garment photo" hidden>
         <div class="reticle" id="reticle"></div>
+        <div id="flash"></div>
         <div class="status live" id="status"><span class="dot"></span><span id="statusText">Live</span></div>
+        <div class="stage-tools">
+          <button class="tool active" id="autoBtn" aria-label="Auto-snap on" aria-pressed="true" title="Auto-snap">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L5 13 H11 L10 22 L19 10 H13 Z"/></svg>
+          </button>
+          <button class="tool" id="flipBtn" aria-label="Flip camera" title="Flip camera" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9 a8 6 0 0 1 15 -1 M20 15 a8 6 0 0 1 -15 1 M19 4 V8 H15 M5 20 V16 H9"/></svg>
+          </button>
+        </div>
         <div class="live-chip">
-          <div class="swatch-lg" id="liveSwatch"></div>
-          <div>
-            <div class="label">Detecting</div>
-            <div class="name" id="liveName">Point at fabric</div>
+          <div class="live-top">
+            <div class="swatch-lg" id="liveSwatch"></div>
+            <div>
+              <div class="label">Detecting</div>
+              <div class="name" id="liveName">Point at fabric</div>
+            </div>
           </div>
+          <div class="live-sugs" id="liveSugs" hidden></div>
         </div>
       </div>
 

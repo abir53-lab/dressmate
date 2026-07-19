@@ -1,4 +1,4 @@
-const CACHE = 'dressmate-v2';
+const CACHE = 'dressmate-v3';
 const ASSETS = ['.', 'index.html', 'app.js', 'colorlogic.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

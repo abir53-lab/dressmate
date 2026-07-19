@@ -108,6 +108,7 @@ try {
 
   // --- Photo path: inject a navy image as the uploaded file, scan, verify ---
   const photoResult = await evalJs(`(async () => {
+    document.getElementById('autoBtn').click(); // auto-snap off for deterministic photo test
     const cv = document.createElement('canvas');
     cv.width = cv.height = 200;
     const ctx = cv.getContext('2d');
@@ -177,6 +178,19 @@ try {
   const buttons = await evalJs(`(async () => {
     const $ = (s) => document.querySelector(s);
     const out = {};
+    // Deterministic setup: auto-snap off, shirt slot kept, other slots cleared
+    out.autoWasOn = $('#autoBtn').classList.contains('active');
+    $('#autoBtn').click();
+    out.autoTogglesOff = !$('#autoBtn').classList.contains('active');
+    for (const g of ['pants', 'jacket', 'tie']) {
+      const s = $('.slot[data-slot="' + g + '"]');
+      if (s.classList.contains('filled')) s.click();
+    }
+    if (!$('.slot[data-slot="shirt"]').classList.contains('filled')) {
+      // ensure shirt is captured: select shirt and lock
+      $('#garments button[data-g="shirt"]').click();
+      $('#scanBtn').click();
+    }
     // All four garment tabs activate
     out.tabs = [];
     for (const g of ['pants', 'jacket', 'tie', 'shirt']) {
@@ -219,6 +233,29 @@ try {
   check('save look persists to localStorage + renders row', buttons.savedCount === 1 && buttons.lookRowShown);
   check('delete look removes it', buttons.afterDelete === 0);
   check('tapping a slot clears it and disables save', buttons.slotCleared && buttons.saveDisabledAgain);
+
+  // --- Hands-free flow on iPhone-sized viewport: zero clicks, full outfit ---
+  await send('Emulation.setDeviceMetricsOverride', { width: 428, height: 926, deviceScaleFactor: 2, mobile: true });
+  await send('Page.navigate', { url: APP });
+  await sleep(1500);
+  const handsFree = await evalJs(`(async () => {
+    const filled = () => document.querySelectorAll('.slot.filled').length;
+    for (let i = 0; i < 300 && filled() < 4; i++) await new Promise((r) => setTimeout(r, 100));
+    const chip = document.querySelector('.live-chip').getBoundingClientRect();
+    return {
+      slots: filled(),
+      status: document.getElementById('statusText').textContent,
+      scoreShown: !document.getElementById('scoreBadge').hidden,
+      stripVisible: !document.getElementById('liveSugs').hidden,
+      chipOnScreen: chip.bottom <= window.innerHeight && chip.top >= 0,
+      flipExists: !!document.getElementById('flipBtn'),
+      toolsExist: !!document.getElementById('autoBtn'),
+    };
+  })()`);
+  check('hands-free auto-snap fills all 4 slots with zero clicks', handsFree.slots === 4, `${handsFree.slots}/4 slots`);
+  check('outfit completes into Locked state with score', handsFree.status === 'Locked' && handsFree.scoreShown, `status: ${handsFree.status}`);
+  check('on-camera suggestion strip visible without scrolling (iPhone size)', handsFree.stripVisible && handsFree.chipOnScreen);
+  check('camera tools (auto-snap, flip) present', handsFree.toolsExist && handsFree.flipExists);
 
   const shot = await send('Page.captureScreenshot', { format: 'png' });
   fs.writeFileSync('/private/tmp/claude-501/-Users-abirtuli/c8bd506e-9116-40d8-b2d6-c6aa045a4bc2/scratchpad/dressmate-e2e.png', Buffer.from(shot.data, 'base64'));

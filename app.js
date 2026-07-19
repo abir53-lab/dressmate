@@ -1,4 +1,4 @@
-import { dominantColor, suggest, outfitScore, SWATCHES } from './colorlogic.js';
+import { dominantColor, suggest, outfitScore, GARMENTS, SWATCHES } from './colorlogic.js';
 
 const video = document.getElementById('video');
 const photo = document.getElementById('photo');
@@ -14,8 +14,12 @@ let garment = 'shirt';
 let usingPhoto = false;
 let locked = false;
 let committedName = null;   // color currently shown in the panel
-let recentNames = [];       // stability window for auto-detection
-const STABLE_N = 3;         // consecutive identical readings required
+let stableRun = 0;          // consecutive ticks with the same reading
+let lastTickName = null;
+let autoSnap = true;
+let facing = 'environment';
+const STABLE_N = 3;         // readings needed to update the panel
+const SNAP_TICKS = 7;       // readings needed for hands-free auto-snap (~2.8s)
 const TICK_MS = 400;
 
 // --- UI helpers ---------------------------------------------------------
@@ -31,16 +35,20 @@ function setStatus(mode) {
   scanLabel.textContent = usingPhoto ? 'Scan photo' : locked ? 'Resume live' : 'Lock color';
 }
 
+function selectGarment(g) {
+  garment = g;
+  document.querySelectorAll('#garments button').forEach((b) => b.classList.toggle('active', b.dataset.g === g));
+  document.getElementById('detGarment').textContent = g;
+  if (committedName) renderSuggestions(committedName); // re-pair for the new garment
+}
+
 document.getElementById('garments').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-g]');
   if (!btn) return;
-  garment = btn.dataset.g;
-  document.querySelectorAll('#garments button').forEach((b) => b.classList.toggle('active', b === btn));
-  document.getElementById('detGarment').textContent = garment;
-  if (committedName) renderSuggestions(committedName); // re-pair for the new garment
+  selectGarment(btn.dataset.g);
   if (locked && !usingPhoto) { // moving to a new garment: resume live scanning
     locked = false;
-    recentNames = [];
+    stableRun = 0;
     setStatus('live');
   }
 });
@@ -174,18 +182,43 @@ async function startCamera() {
     return;
   }
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 } }, audio: false,
-    });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: facing, width: { ideal: 1280 } }, audio: false,
+      });
+    } catch {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
     video.srcObject = stream;
     video.play().catch(() => {});
+    video.classList.toggle('mirror', facing === 'user');
     usingPhoto = false;
     photo.hidden = true; video.hidden = false;
     setStatus('live');
+    // Show the flip button only when there's more than one camera
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    document.getElementById('flipBtn').hidden = devices.filter((d) => d.kind === 'videoinput').length < 2;
   } catch {
     showError('Camera blocked or unavailable — use "Use photo" instead.');
   }
 }
+
+document.getElementById('flipBtn').addEventListener('click', async () => {
+  facing = facing === 'environment' ? 'user' : 'environment';
+  video.srcObject?.getTracks().forEach((t) => t.stop());
+  stableRun = 0;
+  await startCamera();
+});
+
+document.getElementById('autoBtn').addEventListener('click', (e) => {
+  autoSnap = !autoSnap;
+  const btn = e.currentTarget;
+  btn.classList.toggle('active', autoSnap);
+  btn.setAttribute('aria-pressed', String(autoSnap));
+  btn.setAttribute('aria-label', autoSnap ? 'Auto-snap on' : 'Auto-snap off');
+  showToast(autoSnap ? 'Auto-snap on: hold steady to capture' : 'Auto-snap off');
+});
 
 // --- Sampling -----------------------------------------------------------
 
@@ -249,9 +282,60 @@ function renderSuggestions(colorName) {
     div.append(h3, row);
     wrap.appendChild(div);
   }
+  // Compact strip on the camera itself (phones — no scrolling needed)
+  const ls = document.getElementById('liveSugs');
+  ls.hidden = false;
+  ls.innerHTML = '';
+  for (const [g, colors] of Object.entries(sugs)) {
+    const row = document.createElement('div');
+    row.className = 'lg-row';
+    const label = document.createElement('span');
+    label.className = 'lg-label';
+    label.textContent = g;
+    row.appendChild(label);
+    for (const c of colors) {
+      const item = document.createElement('span');
+      item.className = 'lg-item';
+      const dot = document.createElement('span');
+      dot.className = 'lg-dot';
+      dot.style.background = SWATCHES[c] || '#888';
+      const nm = document.createElement('span');
+      nm.textContent = c;
+      item.append(dot, nm);
+      row.appendChild(item);
+    }
+    ls.appendChild(row);
+  }
 }
 
 // --- Auto-detection loop ------------------------------------------------
+
+function flash() {
+  const f = document.getElementById('flash');
+  f.classList.remove('on');
+  void f.offsetWidth; // restart the animation
+  f.classList.add('on');
+}
+
+// Hands-free capture: assign the color, then advance to the next empty garment.
+function doSnap(color) {
+  renderDetected(color);
+  assignToOutfit(color);
+  flash();
+  stableRun = 0;
+  const captured = garment;
+  const next = GARMENTS.find((g) => !outfit[g]);
+  if (next) {
+    selectGarment(next);
+    showToast(`${captured}: ${color.name} — now show me your ${next}`);
+  } else {
+    locked = true;
+    setStatus('locked');
+    const names = Object.fromEntries(Object.entries(outfit).map(([g, c]) => [g, c?.name]));
+    const r = outfitScore(names);
+    showToast(`Outfit complete — ${r.score}/100, ${r.verdict.toLowerCase()}`);
+  }
+}
 
 function tick() {
   if (usingPhoto || locked || document.hidden) return;
@@ -260,11 +344,13 @@ function tick() {
   // Always show the instantaneous reading in the on-camera chip
   document.getElementById('liveSwatch').style.background = `rgb(${color.r},${color.g},${color.b})`;
   document.getElementById('liveName').textContent = color.name;
+  stableRun = color.name === lastTickName ? stableRun + 1 : 1;
+  lastTickName = color.name;
+  const stable = stableRun >= STABLE_N;
+  document.getElementById('reticle').classList.toggle('ready', stable);
   // Commit to the suggestions panel only when the reading is stable
-  recentNames.push(color.name);
-  if (recentNames.length > STABLE_N) recentNames.shift();
-  const stable = recentNames.length === STABLE_N && recentNames.every((n) => n === recentNames[0]);
   if (stable && color.name !== committedName) renderDetected(color);
+  if (autoSnap && stableRun >= SNAP_TICKS) doSnap(color);
 }
 setInterval(tick, TICK_MS);
 
@@ -280,7 +366,7 @@ document.getElementById('scanBtn').addEventListener('click', () => {
   }
   if (locked) {
     locked = false;
-    recentNames = [];
+    stableRun = 0;
     setStatus('live');
   } else {
     const color = readColor();
