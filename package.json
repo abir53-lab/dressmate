@@ -1,0 +1,10 @@
+{
+  "name": "dressmate",
+  "version": "1.0.0",
+  "description": "Camera-based outfit color matcher — PWA for Mac and iOS",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8642",
+    "test": "node --test colorlogic.test.js && node test-e2e.js"
+  }
+}
