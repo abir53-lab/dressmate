@@ -1,5 +1,6 @@
-const CACHE = 'dressmate-v3';
-const ASSETS = ['.', 'index.html', 'app.js', 'colorlogic.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'dressmate-v4';
+const ASSETS = ['.', 'index.html', 'app.js', 'colorlogic.js', 'manifest.json', 'icon-192.png', 'icon-512.png',
+  'fonts/Fraunces.ttf', 'fonts/Fraunces-Italic.ttf', 'fonts/SpaceGrotesk.ttf'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));

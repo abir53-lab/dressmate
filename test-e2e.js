@@ -242,11 +242,15 @@ try {
     const filled = () => document.querySelectorAll('.slot.filled').length;
     for (let i = 0; i < 300 && filled() < 4; i++) await new Promise((r) => setTimeout(r, 100));
     const chip = document.querySelector('.live-chip').getBoundingClientRect();
+    const strip = document.getElementById('liveSugs').getBoundingClientRect();
+    const stage = document.querySelector('.stage').getBoundingClientRect();
     return {
       slots: filled(),
       status: document.getElementById('statusText').textContent,
       scoreShown: !document.getElementById('scoreBadge').hidden,
-      stripVisible: !document.getElementById('liveSugs').hidden,
+      stripVisible: !document.getElementById('liveSugs').hidden &&
+        strip.top >= stage.bottom && strip.bottom <= window.innerHeight,
+      chipSmall: chip.width <= stage.width * 0.75 && chip.height <= 60,
       chipOnScreen: chip.bottom <= window.innerHeight && chip.top >= 0,
       flipExists: !!document.getElementById('flipBtn'),
       toolsExist: !!document.getElementById('autoBtn'),
@@ -254,7 +258,8 @@ try {
   })()`);
   check('hands-free auto-snap fills all 4 slots with zero clicks', handsFree.slots === 4, `${handsFree.slots}/4 slots`);
   check('outfit completes into Locked state with score', handsFree.status === 'Locked' && handsFree.scoreShown, `status: ${handsFree.status}`);
-  check('on-camera suggestion strip visible without scrolling (iPhone size)', handsFree.stripVisible && handsFree.chipOnScreen);
+  check('suggestion strip below camera, visible without scrolling (iPhone size)', handsFree.stripVisible && handsFree.chipOnScreen);
+  check('detected pill is compact (does not cover faces)', handsFree.chipSmall);
   check('camera tools (auto-snap, flip) present', handsFree.toolsExist && handsFree.flipExists);
 
   const shot = await send('Page.captureScreenshot', { format: 'png' });
