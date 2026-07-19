@@ -1,60 +1,59 @@
 # DressMate — Outfit Color Matcher
 
-Point your camera at a garment (shirt, pants, jacket, or tie), and DressMate
-detects its color and suggests matching colors for the other three garments,
-using classic menswear pairing rules. Everything runs on-device — no backend,
-no accounts, works offline once installed.
+Point your camera at a garment and DressMate detects its color live, suggests
+matching colors for the rest of your outfit, and — with **auto-snap** — builds
+your whole outfit hands-free: hold steady ~3s on each garment and it captures
+the color, advances to the next garment, and finishes with a **match score
+out of 100**. Everything runs on-device: no backend, no accounts, works
+offline once installed.
 
-One codebase covers **Mac (web app)** and **iOS (installable home-screen app)**
-as a PWA.
+**Live app:** https://abir53-lab.github.io/dressmate/
 
-## Run on your Mac
+One codebase covers **Mac (web)** and **iPhone (Add to Home Screen in Safari)**
+as a PWA. On iPhone it runs full-screen with camera access and offline support.
 
-```sh
-cd ~/dressmate
-npm start          # serves at http://localhost:8642
-```
+## Features
 
-Open http://localhost:8642 in Safari or Chrome and allow camera access.
+- **Live auto-detection** — samples the reticle every 400ms; panel updates
+  after 3 stable readings, auto-snap captures after 7 (~2.8s)
+- **Auto-snap hands-free flow** (⚡ toggle) — captures each garment and
+  advances shirt → pants → jacket → tie, ending locked with a score
+- **Match score** — pairwise color-harmony rating with verdict, from menswear
+  pairing rules + hue-distance analysis
+- **Outfit builder** — lock colors into 4 slots; tap a slot to clear
+- **Saved looks** — up to 8 in localStorage, with date and score
+- **Share** — iOS share sheet / clipboard fallback
+- **Camera flip** (front/back; shown only when 2+ cameras) with mirrored selfie preview
+- **Photo mode** — scan any picture instead of the live camera
 
-## Install on your iPhone
+## Design
 
-iOS Safari requires HTTPS for camera access, so put the folder on any static
-host (GitHub Pages, Netlify, Cloudflare Pages — all free):
+Editorial ink/bone/vermilion theme. Type: **Fraunces** (italic display serif)
++ **Space Grotesk** (labels/body), self-hosted in `fonts/` under the SIL Open
+Font License (see `fonts/OFL-*.txt`).
 
-1. Open the HTTPS URL in Safari on your iPhone.
-2. Tap **Share → Add to Home Screen**.
-3. Launch from the home screen — it runs full-screen like a native app, with
-   camera access and offline support.
-
-(Alternately, on the same Wi-Fi you can reach your Mac's local server, but
-camera access there needs HTTPS — the **Use photo** button still works.)
-
-## How to use
-
-1. Tap the garment type you're scanning (Shirt / Pants / Jacket / Tie).
-2. Center the fabric in the dashed box and tap **Scan color** — or tap
-   **Use photo** to pick an existing picture.
-3. Read the suggested colors for the other three garments.
-
-## Testing
+## Run locally
 
 ```sh
-npm test
+npm start        # http://localhost:8642
+npm test         # 9 unit tests + 24 e2e tests
 ```
 
-- `colorlogic.test.js` — 7 unit tests for color conversion, naming,
-  pairing rules, and dominant-color extraction (pure Node, no browser).
-- `test-e2e.js` — 9 end-to-end tests driving the real UI in headless Chrome
-  via the DevTools Protocol: page load, photo upload → navy detection →
-  correct suggestions, garment switching, and a live fake-camera feed
-  (khaki `.y4m` clip) → khaki detection. Starts its own server; needs
-  Google Chrome or a cached Playwright Chromium.
+E2E tests drive the real UI in headless Chrome over the DevTools Protocol,
+feeding a khaki `.y4m` file as a fake camera — including a zero-click test at
+iPhone 13 Pro Max viewport that verifies the full hands-free flow. Note:
+`--disable-gpu` breaks fake-camera frame delivery; the test runner omits it.
 
-## Files
+## Deploying updates
 
-- `index.html` — UI (single page, no framework)
-- `app.js` — camera capture, photo upload, scan + render logic
-- `colorlogic.js` — pure color math: RGB→HSL, color naming, pairing rules,
-  dominant-color extraction
-- `manifest.json`, `sw.js`, `icon-*.png` — PWA install + offline support
+Push to `main` — GitHub Pages redeploys automatically. The service worker is
+network-first, so installed apps pick up new files on next launch (bump the
+cache version in `sw.js` per release).
+
+## Roadmap (agreed, not yet built)
+
+1. Lighting compensation + "too dark" hint (biggest real-world accuracy gap)
+2. Undo button on the auto-snap toast
+3. First-run coach marks explaining auto-snap
+4. Score explanation ("weakest pair: tie × pants")
+5. Landscape phone layout
